@@ -77,7 +77,7 @@ class LazyCopickFile:
         
         # Load raw data
         tomogram = voxel_spacing_obj.get_tomogram(self.tomo_type)
-        self.raw_array = zarr.open(tomogram.path, mode='r')['data']
+        self.raw_array = zarr.open(tomogram.zarr(), mode='r')['0']
         
         # Load label data
         segmentation = run.get_segmentations(
@@ -88,7 +88,7 @@ class LazyCopickFile:
             voxel_size=self.voxel_spacing
         )
         if segmentation:
-            self.label_array = zarr.open(segmentation[0].path, mode='r')['data']
+            self.label_array = zarr.open(segmentation[0].zarr(), mode='r')['data']
         else:
             raise ValueError(f"Segmentation not found for run {self.run_name}")
         
