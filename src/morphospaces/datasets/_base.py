@@ -57,7 +57,7 @@ class BaseTiledDataset(Dataset):
         # make the slices
         assert (
             patch_filter_key in self.data
-        ), "patch_filter_key must be a dataset key"
+        ), f"patch_filter_key must be a dataset key: {patch_filter_key}"
         self.patches = PatchManager(
             data=self.data,
             patch_shape=patch_shape,
