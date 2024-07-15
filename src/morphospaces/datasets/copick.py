@@ -49,7 +49,7 @@ class LazyTiledCopickDataset(BaseTiledDataset):
             store_unique_label_values=store_unique_label_values,
         )
     
-    def get_array(self, run_name):
+    def get_array(self, file_path, run_name):
         return LazyCopickFile(
             self.copick_config_path,
             run_name,
