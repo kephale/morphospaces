@@ -13,17 +13,17 @@ class LazyTiledCopickDataset(BaseTiledDataset):
         copick_config_path,
         session_id,
         user_id,
-        run_names,
+        run_names: List[str],
         tomo_type,
         segmentation_name,
         transform,
-        patch_shape=(96, 96, 96),
-        stride_shape=(24, 24, 24),
-        patch_filter_ignore_index=(0,),
-        patch_threshold=0,
+        patch_shape: Tuple[int, ...] = (96, 96, 96),
+        stride_shape: Tuple[int, ...] = (24, 24, 24),
+        patch_filter_ignore_index: Tuple[int, ...] = (0,),
+        patch_threshold: float = 0,
         patch_slack_acceptance=0.01,
         voxel_spacing=None,
-        store_unique_label_values=False,
+        store_unique_label_values: bool = False,
     ):
         self.copick_config_path = copick_config_path
         self.session_id = session_id
@@ -33,13 +33,10 @@ class LazyTiledCopickDataset(BaseTiledDataset):
         self.segmentation_name = segmentation_name
         self.voxel_spacing = voxel_spacing
 
-        # We'll use 'raw' and 'label' as keys, even though they're not directly in run_names
-        dataset_keys = ['raw', 'label']
-
         super().__init__(
             patch_filter_key="label",
-            dataset_keys=dataset_keys,
-            file_path=copick_config_path,  # We're not really using this, but it's required
+            dataset_keys=run_names,
+            file_path=copick_config_path,
             transform=transform,
             patch_shape=patch_shape,
             stride_shape=stride_shape,
@@ -49,22 +46,19 @@ class LazyTiledCopickDataset(BaseTiledDataset):
             store_unique_label_values=store_unique_label_values,
         )
     
-    def get_array(self, file_path, key):
-        # Here, we'll return a LazyCopickFile for both 'raw' and 'label'
-        # The LazyCopickFile will handle the distinction internally
+    def get_array(self, file_path, run_name):
         return LazyCopickFile(
             self.copick_config_path,
-            self.run_names[0],  # Assuming we're only using the first run for now
+            run_name,
             self.session_id,
             self.user_id,
             self.tomo_type,
             self.segmentation_name,
-            self.voxel_spacing,
-            key  # Pass 'raw' or 'label' to LazyCopickFile
+            self.voxel_spacing
         )
 
 class LazyCopickFile:
-    def __init__(self, copick_config_path, run_name, session_id, user_id, tomo_type, segmentation_name, voxel_spacing, data_type):
+    def __init__(self, copick_config_path, run_name, session_id, user_id, tomo_type, segmentation_name, voxel_spacing):
         self.copick_config_path = copick_config_path
         self.run_name = run_name
         self.session_id = session_id
@@ -72,60 +66,56 @@ class LazyCopickFile:
         self.tomo_type = tomo_type
         self.segmentation_name = segmentation_name
         self.voxel_spacing = voxel_spacing
-        self.data_type = data_type  # 'raw' or 'label'
-        
-        array = self.to_array()
-        self.ndim = array.ndim
-        self.shape = array.shape
+        self.raw_array = None
+        self.label_array = None
+        self._load_arrays()
 
-    def to_array(self) -> zarr.core.Array:
+    def _load_arrays(self):
         root = CopickRootFSSpec.from_file(self.copick_config_path)
         run = root.get_run(self.run_name)
         voxel_spacing_obj = run.get_voxel_spacing(self.voxel_spacing)
         
-        if self.data_type == 'raw':
-            tomogram = voxel_spacing_obj.get_tomogram(self.tomo_type)
-            return zarr.open(tomogram.path, mode='r')['data']
-        elif self.data_type == 'label':
-            segmentation = run.get_segmentations(
-                user_id=self.user_id,
-                session_id=self.session_id,
-                is_multilabel=True,
-                name=self.segmentation_name,
-                voxel_size=self.voxel_spacing
-            )
-            if segmentation:
-                return zarr.open(segmentation[0].path, mode='r')['data']
-            else:
-                raise ValueError(f"Segmentation not found for run {self.run_name}")
-
-    def ravel(self) -> np.ndarray:
-        return np.ravel(self.to_array())
+        # Load raw data
+        tomogram = voxel_spacing_obj.get_tomogram(self.tomo_type)
+        self.raw_array = zarr.open(tomogram.path, mode='r')['data']
+        
+        # Load label data
+        segmentation = run.get_segmentations(
+            user_id=self.user_id,
+            session_id=self.session_id,
+            is_multilabel=True,
+            name=self.segmentation_name,
+            voxel_size=self.voxel_spacing
+        )
+        if segmentation:
+            self.label_array = zarr.open(segmentation[0].path, mode='r')['data']
+        else:
+            raise ValueError(f"Segmentation not found for run {self.run_name}")
+        
+        # Set shape and ndim based on raw data
+        self.shape = self.raw_array.shape
+        self.ndim = self.raw_array.ndim
 
     def __getitem__(self, arg):
-        if isinstance(arg, str) and not self.run_name:
-            return LazyCopickFile(
-                self.copick_config_path,
-                arg,
-                self.session_id,
-                self.user_id,
-                self.tomo_type,
-                self.segmentation_name,
-                self.voxel_spacing
-            )
+        if isinstance(arg, str):
+            if arg == 'raw':
+                return self.raw_array
+            elif arg == 'label':
+                return self.label_array
+            else:
+                raise KeyError(f"Invalid key: {arg}. Use 'raw' or 'label'.")
 
         if arg == Ellipsis:
-            return LazyCopickFile(
-                self.copick_config_path,
-                self.run_name,
-                self.session_id,
-                self.user_id,
-                self.tomo_type,
-                self.segmentation_name,
-                self.voxel_spacing
-            )
+            return self
 
-        array = self.to_array()
-        item = array[arg]
-        del array
-        return item
+        # For slice indexing, return a dict with both raw and label data
+        return {
+            'raw': self.raw_array[arg],
+            'label': self.label_array[arg]
+        }
+
+    def ravel(self):
+        return {
+            'raw': self.raw_array.ravel(),
+            'label': self.label_array.ravel()
+        }
