@@ -71,7 +71,12 @@ class SliceBuilder:
                     )
                     if dataset.ndim == 4:
                         slice_idx = (slice(0, in_channels),) + slice_idx
-                    slices.append(slice_idx)
+                    # Check if the slice is within bounds
+                    if SliceBuilder._is_within_bounds(slice_idx, dataset.shape):
+                        slices.append(slice_idx)
+                    else:
+                        print(f"Invalid slice: {slice_idx} for dataset shape: {dataset.shape}")
+
         return slices
 
     @staticmethod
@@ -82,6 +87,13 @@ class SliceBuilder:
         if j + k < i:
             yield i - k
 
+    @staticmethod
+    def _is_within_bounds(slice_idx, shape):
+        for s, dim in zip(slice_idx, shape):
+            if s.stop > dim:
+                return False
+        return True
+            
 
 class FilterSliceBuilder(SliceBuilder):
     """
@@ -124,7 +136,7 @@ class FilterSliceBuilder(SliceBuilder):
 
         # filter slices with less than the requested volume fraction
         # of non-ignore_index
-        self._slices = list(filter(ignore_predicate, self.slices))
+        self._slices = list(filter(ignore_predicate, filter(self._is_within_bounds, self.slices)))
 
 
 class PatchManager:
