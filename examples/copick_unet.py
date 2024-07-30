@@ -255,8 +255,20 @@ def train_unet_copick(
                 self.logger.experiment.add_text(
                     "Debug/Labels Unique Values", str(torch.unique(labels).tolist()), self.current_epoch
                 )
+                self.logger.experiment.add_text(
+                    "Debug/Outputs Unique Values", str(torch.unique(outputs).tolist()), self.current_epoch
+                )
 
-            val_loss = self.loss_function(outputs, labels)
+            try:
+                val_loss = self.loss_function(outputs, labels)
+            except RuntimeError as e:
+                print(f"Validation loss computation failed: {e}")
+                print(f"Output shape: {outputs.shape}")
+                print(f"Label shape: {labels.shape}")
+                print(f"Output unique values: {torch.unique(outputs)}")
+                print(f"Label unique values: {torch.unique(labels)}")
+                raise e
+
             self.dice_metric(y_pred=outputs, y=labels)
             self.log("val_loss", val_loss)
             self.val_outputs.append(val_loss)
