@@ -192,6 +192,8 @@ def train_unet_copick(
         set(unique_val_label_values)
     )
 
+    num_classes = len(unique_label_values)
+
     # Log dataset info before training starts
     print("Training Dataset Info:")
     print(f"Number of samples: {len(train_ds)}")
@@ -200,6 +202,7 @@ def train_unet_copick(
     print(f"Image dtype: {train_ds[0][image_key].dtype}")
     print(f"Label dtype: {train_ds[0][labels_key].dtype}")
     print(f"Unique label values: {unique_train_label_values}")
+    print(f"Number of classes: {num_classes}")
 
     print("\nValidation Dataset Info:")
     print(f"Number of samples: {len(val_ds)}")
@@ -208,6 +211,7 @@ def train_unet_copick(
     print(f"Image dtype: {val_ds[0][image_key].dtype}")
     print(f"Label dtype: {val_ds[0][labels_key].dtype}")
     print(f"Unique label values: {unique_val_label_values}")
+    print(f"Number of classes: {num_classes}")
 
     best_checkpoint_callback = ModelCheckpoint(
         save_top_k=1,
@@ -228,13 +232,13 @@ def train_unet_copick(
     learning_rate_monitor = LearningRateMonitor(logging_interval="step")
 
     class UNetSegmentation(pl.LightningModule):
-        def __init__(self, lr):
+        def __init__(self, lr, num_classes):
             super().__init__()
             self.lr = lr
             self.model = UNet(
                 spatial_dims=3,
                 in_channels=1,
-                out_channels=1,
+                out_channels=num_classes,  # Use the dynamically determined number of classes
                 channels=(16, 32, 64, 128, 256),
                 strides=(2, 2, 2, 2),
                 num_res_units=2,
@@ -247,7 +251,7 @@ def train_unet_copick(
 
         def training_step(self, batch, batch_idx):
             images, labels = batch[image_key], batch[labels_key]
-            labels = labels.long()  # convert to Long
+            labels = labels.squeeze(1).long()  # Convert labels to Long and squeeze
             outputs = self.forward(images)
             loss = self.loss_function(outputs, labels)
             self.log("train_loss", loss)
@@ -255,7 +259,7 @@ def train_unet_copick(
 
         def validation_step(self, batch, batch_idx):
             images, labels = batch[image_key], batch[labels_key]
-            labels = labels.long()  # convert to Long
+            labels = labels.squeeze(1).long()  # Convert labels to Long and squeeze
             outputs = self.forward(images)
 
             # Debugging information
@@ -300,7 +304,7 @@ def train_unet_copick(
         
     logger = TensorBoardLogger(save_dir=logdir_path, name="lightning_logs")
 
-    net = UNetSegmentation(lr=lr)
+    net = UNetSegmentation(lr=lr, num_classes=num_classes)
 
     trainer = pl.Trainer(
         accelerator="gpu",
@@ -314,6 +318,34 @@ def train_unet_copick(
         check_val_every_n_epoch=6,
     )
     trainer.fit(net, train_dataloaders=train_loader, val_dataloaders=val_loader)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train a 3D UNet network using the Copick dataset for segmentation.")
+    parser.add_argument("--copick_config_path", type=str, required=True, help="Path to the Copick configuration file")
+    parser.add_argument("--train_run_names", type=str, required=True, help="Names of the runs in the Copick project for training")
+    parser.add_argument("--val_run_names", type=str, required=True, help="Names of the runs in the Copick project for validation")
+    parser.add_argument("--tomo_type", type=str, required=True, help="Tomogram type in the Copick project")
+    parser.add_argument("--user_id", type=str, required=True, help="User ID for the Copick project")
+    parser.add_argument("--session_id", type=str, required=True, help="Session ID for the Copick project")
+    parser.add_argument("--segmentation_type", type=str, required=True, help="Segmentation type in the Copick project")
+    parser.add_argument("--voxel_spacing", type=float, required=True, help="Voxel spacing for the Copick project")
+    parser.add_argument("--lr", type=float, default=0.0001, help="Learning rate for the UNet training")
+    parser.add_argument("--logdir", type=str, default="checkpoints", help="Output directory name in the current working directory. Default is checkpoints")
+    
+    args = parser.parse_args()
+    
+    train_unet_copick(
+        copick_config_path=args.copick_config_path,
+        train_run_names=args.train_run_names,
+        val_run_names=args.val_run_names,
+        tomo_type=args.tomo_type,
+        user_id=args.user_id,
+        session_id=args.session_id,
+        segmentation_type=args.segmentation_type,
+        voxel_spacing=args.voxel_spacing,
+        lr=args.lr,
+        logdir=args.logdir
+    )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a 3D UNet network using the Copick dataset for segmentation.")
