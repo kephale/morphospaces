@@ -346,31 +346,3 @@ if __name__ == "__main__":
         lr=args.lr,
         logdir=args.logdir
     )
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train a 3D UNet network using the Copick dataset for segmentation.")
-    parser.add_argument("--copick_config_path", type=str, required=True, help="Path to the Copick configuration file")
-    parser.add_argument("--train_run_names", type=str, required=True, help="Names of the runs in the Copick project for training")
-    parser.add_argument("--val_run_names", type=str, required=True, help="Names of the runs in the Copick project for validation")
-    parser.add_argument("--tomo_type", type=str, required=True, help="Tomogram type in the Copick project")
-    parser.add_argument("--user_id", type=str, required=True, help="User ID for the Copick project")
-    parser.add_argument("--session_id", type=str, required=True, help="Session ID for the Copick project")
-    parser.add_argument("--segmentation_type", type=str, required=True, help="Segmentation type in the Copick project")
-    parser.add_argument("--voxel_spacing", type=float, required=True, help="Voxel spacing for the Copick project")
-    parser.add_argument("--lr", type=float, default=0.0001, help="Learning rate for the UNet training")
-    parser.add_argument("--logdir", type=str, default="checkpoints", help="Output directory name in the current working directory. Default is checkpoints")
-    
-    args = parser.parse_args()
-    
-    train_unet_copick(
-        copick_config_path=args.copick_config_path,
-        train_run_names=args.train_run_names,
-        val_run_names=args.val_run_names,
-        tomo_type=args.tomo_type,
-        user_id=args.user_id,
-        session_id=args.session_id,
-        segmentation_type=args.segmentation_type,
-        voxel_spacing=args.voxel_spacing,
-        lr=args.lr,
-        logdir=args.logdir
-    )
