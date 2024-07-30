@@ -16,32 +16,24 @@ class SliceBuilder:
         patch_shape: Union[Tuple[int, int, int], Tuple[int, int, int, int]],
         stride_shape: Union[Tuple[int, int, int], Tuple[int, int, int, int]],
     ):
-        """
-        :param raw_dataset: ndarray of raw data
-        :param label_dataset: ndarray of ground truth labels
-        :param weight_dataset: ndarray of weights for the labels
-        :param patch_shape: the shape of the patch DxHxW
-        :param stride_shape: the shape of the stride DxHxW
-        :param kwargs: additional metadata
-        """
-
         patch_shape = tuple(patch_shape)
         stride_shape = tuple(stride_shape)
 
-        self._slices = self._build_slices(
-            dataset=dataset, patch_shape=patch_shape, stride_shape=stride_shape
-        )
+        self.dataset = dataset
+        self.patch_shape = patch_shape
+        self.stride_shape = stride_shape
+        self._slices = self._build_slices(dataset, patch_shape, stride_shape)
 
     @property
     def slices(self):
         return self._slices
 
-    @staticmethod
     def _build_slices(
-        dataset: Dict[str, ArrayLike],
+        self,
+        dataset: ArrayLike,
         patch_shape: Tuple[int, ...],
         stride_shape: Tuple[int, ...],
-    ):
+    ) -> List[Tuple[slice, ...]]:
         """Iterates over a given n-dim dataset patch-by-patch with a given stride
         and builds an array of slice positions.
 
@@ -93,7 +85,7 @@ class SliceBuilder:
             if s.stop > dim:
                 return False
         return True
-            
+
 
 class FilterSliceBuilder(SliceBuilder):
     """
@@ -109,11 +101,7 @@ class FilterSliceBuilder(SliceBuilder):
         threshold: float = 0.6,
         slack_acceptance: float = 0.01,
     ):
-        super().__init__(
-            dataset,
-            patch_shape,
-            stride_shape,
-        )
+        super().__init__(dataset, patch_shape, stride_shape)
 
         rand_state = np.random.RandomState(47)
 
@@ -136,7 +124,9 @@ class FilterSliceBuilder(SliceBuilder):
 
         # filter slices with less than the requested volume fraction
         # of non-ignore_index
-        self._slices = list(filter(ignore_predicate, filter(self._is_within_bounds, self.slices)))
+        self._slices = list(
+            filter(ignore_predicate, filter(lambda s: self._is_within_bounds(s, dataset.shape), self.slices))
+        )
 
 
 class PatchManager:
