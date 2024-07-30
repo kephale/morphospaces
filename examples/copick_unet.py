@@ -17,8 +17,7 @@ from morphospaces.datasets import CopickDataset
 from morphospaces.transforms.label import LabelsAsFloat32
 from morphospaces.transforms.image import ExpandDimsd, StandardizeImage    
 from monai.networks.nets import UNet
-from monai.losses import DiceCELoss
-from monai.metrics import DiceMetric
+from torch.nn import CrossEntropyLoss
 
 def train_unet_copick(
         copick_config_path,
@@ -193,6 +192,23 @@ def train_unet_copick(
         set(unique_val_label_values)
     )
 
+    # Log dataset info before training starts
+    print("Training Dataset Info:")
+    print(f"Number of samples: {len(train_ds)}")
+    print(f"Image shape: {train_ds[0][image_key].shape}")
+    print(f"Label shape: {train_ds[0][labels_key].shape}")
+    print(f"Image dtype: {train_ds[0][image_key].dtype}")
+    print(f"Label dtype: {train_ds[0][labels_key].dtype}")
+    print(f"Unique label values: {unique_train_label_values}")
+
+    print("\nValidation Dataset Info:")
+    print(f"Number of samples: {len(val_ds)}")
+    print(f"Image shape: {val_ds[0][image_key].shape}")
+    print(f"Label shape: {val_ds[0][labels_key].shape}")
+    print(f"Image dtype: {val_ds[0][image_key].dtype}")
+    print(f"Label dtype: {val_ds[0][labels_key].dtype}")
+    print(f"Unique label values: {unique_val_label_values}")
+
     best_checkpoint_callback = ModelCheckpoint(
         save_top_k=1,
         monitor="val_loss",
@@ -223,7 +239,7 @@ def train_unet_copick(
                 strides=(2, 2, 2, 2),
                 num_res_units=2,
             )
-            self.loss_function = DiceCELoss(to_onehot_y=True, softmax=True)
+            self.loss_function = CrossEntropyLoss()
             self.dice_metric = DiceMetric(include_background=True, reduction="mean")
 
             self.val_outputs = []
@@ -233,6 +249,7 @@ def train_unet_copick(
 
         def training_step(self, batch, batch_idx):
             images, labels = batch[image_key], batch[labels_key]
+            labels = labels.squeeze(1)  # Adjust shape to [N, D, H, W]
             outputs = self.forward(images)
             loss = self.loss_function(outputs, labels)
             self.log("train_loss", loss)
@@ -240,6 +257,7 @@ def train_unet_copick(
 
         def validation_step(self, batch, batch_idx):
             images, labels = batch[image_key], batch[labels_key]
+            labels = labels.squeeze(1)  # Adjust shape to [N, D, H, W]
             outputs = self.forward(images)
 
             # Debugging information
@@ -261,10 +279,6 @@ def train_unet_copick(
                 )
 
             try:
-                labels = labels.squeeze(1)  # Convert shape from [1, 1, D, H, W] to [1, D, H, W]
-                labels = F.one_hot(labels.long(), num_classes=2)  # Convert to one-hot encoding
-                labels = labels.permute(0, 4, 1, 2, 3)  # Change shape from [1, D, H, W, C] to [1, C, D, H, W]
-
                 val_loss = self.loss_function(outputs, labels)
             except RuntimeError as e:
                 print(f"Validation loss computation failed: {e}")
