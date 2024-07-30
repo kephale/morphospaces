@@ -247,7 +247,7 @@ def train_unet_copick(
 
         def training_step(self, batch, batch_idx):
             images, labels = batch[image_key], batch[labels_key]
-            labels = labels.squeeze(1).long()  # Adjust shape to [N, D, H, W] and convert to Long
+            labels = labels.long()  # convert to Long
             outputs = self.forward(images)
             loss = self.loss_function(outputs, labels)
             self.log("train_loss", loss)
@@ -255,7 +255,7 @@ def train_unet_copick(
 
         def validation_step(self, batch, batch_idx):
             images, labels = batch[image_key], batch[labels_key]
-            labels = labels.squeeze(1).long()  # Adjust shape to [N, D, H, W] and convert to Long
+            labels = labels.long()  # convert to Long
             outputs = self.forward(images)
 
             # Debugging information
