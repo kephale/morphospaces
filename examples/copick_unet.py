@@ -240,8 +240,6 @@ def train_unet_copick(
                 num_res_units=2,
             )
             self.loss_function = CrossEntropyLoss()
-            self.dice_metric = DiceMetric(include_background=True, reduction="mean")
-
             self.val_outputs = []
 
         def forward(self, x):
@@ -288,15 +286,11 @@ def train_unet_copick(
                 print(f"Label unique values: {torch.unique(labels)}")
                 raise e
 
-            self.dice_metric(y_pred=outputs, y=labels)
             self.log("val_loss", val_loss)
             self.val_outputs.append(val_loss)
             return val_loss
 
         def on_validation_epoch_end(self):
-            dice = self.dice_metric.aggregate().item()
-            self.dice_metric.reset()
-            self.log("val_dice", dice)
             self.val_outputs.clear()
 
         def configure_optimizers(self):
