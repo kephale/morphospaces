@@ -11,6 +11,7 @@ from monai.transforms import (
 )
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
+import torch.nn.functional as F
 
 from morphospaces.datasets import CopickDataset
 from morphospaces.transforms.label import LabelsAsFloat32
