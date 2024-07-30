@@ -260,6 +260,10 @@ def train_unet_copick(
                 )
 
             try:
+                labels = labels.squeeze(1)  # Convert shape from [1, 1, D, H, W] to [1, D, H, W]
+                labels = F.one_hot(labels.long(), num_classes=2)  # Convert to one-hot encoding
+                labels = labels.permute(0, 4, 1, 2, 3)  # Change shape from [1, D, H, W, C] to [1, C, D, H, W]
+
                 val_loss = self.loss_function(outputs, labels)
             except RuntimeError as e:
                 print(f"Validation loss computation failed: {e}")
