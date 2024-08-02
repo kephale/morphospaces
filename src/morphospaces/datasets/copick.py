@@ -133,8 +133,8 @@ class CopickDataset(Dataset):
             segmentation = zarr.open(seg[0].path, mode="r")['data']
             
             zarr_data = {
-                'zarr_tomogram': image,
-                'zarr_mask': segmentation
+                'zarr_tomogram': image[:],
+                'zarr_mask': segmentation[:]
             }
             
             dataset = cls(
