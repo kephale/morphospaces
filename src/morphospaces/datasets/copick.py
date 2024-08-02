@@ -124,7 +124,7 @@ class CopickDataset(Dataset):
             if tomogram is None:
                 raise ValueError(f"Tomogram type '{tomo_type}' not found for voxel spacing '{voxel_spacing}'.")
 
-            image = zarr.open(tomogram.zarr(), mode='r')['0']
+            image = zarr.open(tomogram.zarr().path, mode='r')['0']
             
             seg = run.get_segmentations(user_id=user_id, session_id=session_id, is_multilabel=True, name=segmentation_type, voxel_size=voxel_spacing)
             if len(seg) == 0:
